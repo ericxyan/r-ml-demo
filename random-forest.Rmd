@@ -1,0 +1,78 @@
+---
+title: "Random Forest VS Boosting"
+output: html_notebook
+---
+
+```{r}
+# Install packages
+install.packages("randomForest")
+install.packages("caret")
+install.packages("doParallel")
+```
+
+```{r}
+# Load libraries
+library(randomForest)
+library(caret)
+library(doParallel)
+```
+
+```{r}
+numCores <- detectCores()
+numCores
+cl <- makePSOCKcluster(numCores - 1)
+registerDoParallel(cl)
+```
+
+
+```{r}
+# Download data
+
+# https://archive.ics.uci.edu/ml/datasets/Internet+Firewall+Data
+# Internet Firewall Data Data Set
+# Data Set Information:
+# There are 12 features in total. Action feature is used as a class. There are 4 classes in total. These are allow, action, drop and reset-both classes.
+rawData <- read.csv("https://archive.ics.uci.edu/ml/machine-learning-databases/00542/log2.csv")
+head(rawData)
+```
+
+```{r}
+# Move column "Action" to head
+data = rawData[, c(which(colnames(rawData) == "Action"), which(colnames(rawData) != "Action"))]
+head(data)
+```
+
+```{r}
+# Load data
+x <- data[, 2:ncol(data)]
+y <- data[, 1]
+```
+
+```{r}
+# Partition data
+set.seed(123)
+trainSub <- createDataPartition(data$Action, p = .8, list = FALSE)
+training <- data[ trainSub,]
+testing  <- data[-trainSub,]
+```
+
+```{r}
+dim(training)
+dim(testing)
+```
+
+```{r}
+# Parameter tuning
+set.seed(123)
+rfModel <- train(Action~., 
+                 data = training, 
+                 method = "rf",
+                 metric = "Accuracy",
+                 trControl = trainControl(method = "cv", number = 5),
+                 tuneGrid = expand.grid(.mtry = c(1 : 11)),
+                 importance = TRUE,
+                 ntree = 500)
+rfModel
+```
+
+
