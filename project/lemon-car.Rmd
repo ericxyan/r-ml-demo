@@ -1,0 +1,139 @@
+---
+title: "Lemon Car"
+output:
+  word_document: default
+  html_notebook: default
+---
+
+
+```{r}
+# Install packages
+# install.packages("caret")
+# install.packages("doParallel")
+# install.packages("glmnet")
+```
+
+```{r}
+# Load libraries
+library(caret)
+library(glmnet)
+library(doParallel)
+```
+
+```{r}
+# Detect number of CPU cores
+numCores <- detectCores()
+cl <- makePSOCKcluster(numCores)
+registerDoParallel(cl)
+```
+
+
+```{r}
+# Load data
+rawData <- read.csv("training.csv")[1:5000,]
+```
+
+## Explore Data
+
+```{r}
+str(rawData)
+```
+
+
+### Formatting Data
+
+```{r}
+# remove RefId(irrelevant), WheelType(already have WheelTypeID)
+rawData <- rawData[, -which(names(rawData) %in% c("RefId", "WheelType"))]
+```
+
+
+```{r}
+# convert char to numeric
+numCharColNames = c("WheelTypeID", "MMRAcquisitionAuctionAveragePrice", "MMRAcquisitionAuctionCleanPrice", "MMRAcquisitionRetailAveragePrice", "MMRAcquisitonRetailCleanPrice", "MMRCurrentAuctionAveragePrice", "MMRCurrentAuctionCleanPrice", "MMRCurrentRetailAveragePrice", "MMRCurrentRetailCleanPrice")
+rawData[numCharColNames] <- sapply(rawData[numCharColNames], as.numeric)
+```
+
+```{r}
+# format date string 
+# rawData$PurchDate <- gsub("/", "-", rawData$PurchDate)
+```
+
+
+```{r}
+# find char columns
+charColNames <- names(rawData)[sapply(rawData, class) == "character"]
+charColNames
+```
+
+```{r}
+# remove NA rows
+rawData <- na.omit(rawData)
+```
+
+
+```{r}
+# convert char columns to factors
+rawData[charColNames] <- lapply(rawData[charColNames], factor)
+```
+
+
+```{r}
+# drop levels less than 1
+rawData <- rawData[, (sapply(rawData, nlevels) > 1) | (sapply(rawData, is.factor) == FALSE)]
+```
+
+
+```{r}
+# convert class to factor
+rawData$IsBadBuy <- factor(rawData$IsBadBuy)
+```
+
+
+## PCA
+
+```{r}
+preProc <- preProcess(rawData[,-1], method = "pca", thresh = 0.9)
+preProc
+```
+
+```{r}
+preProc$rotation
+```
+
+```{r}
+# Partition data
+set.seed(123)
+
+trainSub <- createDataPartition(rawData$IsBadBuy, p = .8, list = FALSE)
+
+training <- rawData[ trainSub,]
+testing  <- rawData[-trainSub,]
+
+x <- training[, -2]
+y <- training[, 2]
+```
+
+
+
+```{r}
+str(training)
+```
+
+
+```{r}
+# Parameter tuning
+glmnetModel <- train(IsBadBuy~., 
+                 data = training, 
+                 method = "glmnet",
+                 trControl = trainControl(method = "cv", number = 5, search = "random")
+                 )
+glmnetModel
+```
+
+
+```{r}
+# Predict testing data
+glmnet_y_pred = predict(glmnetModel, newdata = testing[, -1])
+confusionMatrix(glmnet_y_pred, as.factor(testing[, 1]))
+```
