@@ -1,8 +1,10 @@
 ---
 title: "Lemon Car"
 output:
-  word_document: default
+  html_document:
+    df_print: paged
   html_notebook: default
+  word_document: default
 ---
 
 
@@ -17,6 +19,7 @@ output:
 # Load libraries
 library(caret)
 library(glmnet)
+# library(doMC)
 library(doParallel)
 ```
 
@@ -25,15 +28,18 @@ library(doParallel)
 numCores <- detectCores()
 cl <- makePSOCKcluster(numCores)
 registerDoParallel(cl)
+# require(doMC)
+# registerDoMC(cores = numCores)
 ```
 
 
 ```{r}
 # Load data
-rawData <- read.csv("training.csv")[1:5000,]
+rawData <- read.csv("data.csv")
 ```
 
 ## Explore Data
+
 
 ```{r}
 str(rawData)
@@ -90,17 +96,6 @@ rawData$IsBadBuy <- factor(rawData$IsBadBuy)
 ```
 
 
-## PCA
-
-```{r}
-preProc <- preProcess(rawData[,-1], method = "pca", thresh = 0.9)
-preProc
-```
-
-```{r}
-preProc$rotation
-```
-
 ```{r}
 # Partition data
 set.seed(123)
@@ -109,9 +104,6 @@ trainSub <- createDataPartition(rawData$IsBadBuy, p = .8, list = FALSE)
 
 training <- rawData[ trainSub,]
 testing  <- rawData[-trainSub,]
-
-x <- training[, -2]
-y <- training[, 2]
 ```
 
 
@@ -126,7 +118,8 @@ str(training)
 glmnetModel <- train(IsBadBuy~., 
                  data = training, 
                  method = "glmnet",
-                 trControl = trainControl(method = "cv", number = 5, search = "random")
+                 trControl = trainControl(method = "cv", number = 5, search = "random"),
+                 parallel=TRUE
                  )
 glmnetModel
 ```
